@@ -1,0 +1,60 @@
+version: '3.5'
+
+networks:
+  traefik_net:
+    external: true
+
+volumes:
+  botapi_data:
+
+services:
+  botapi:
+    image: tdlight/tdlightbotapi:latest
+    restart: always
+    container_name: botapi
+    environment:
+      TELEGRAM_API_ID: ${TELEGRAM_API_ID}
+      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH}
+      TELEGRAM_LOCAL: 1
+      TELEGRAM_STAT: 1
+      TELEGRAM_RELATIVE: 1
+    volumes:
+      - botapi_data:/var/lib/telegram-bot-api
+    networks:
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      # Bot api main service
+      - "traefik.http.services.botapi.loadbalancer.server.port=8081"
+      - "traefik.http.routers.botapi.service=botapi"
+      - "traefik.http.routers.botapi.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.botapi.entrypoints=websecure"
+      - "traefik.http.routers.botapi.priority=1"
+      - "traefik.http.routers.botapi.tls=true"
+      - "traefik.http.routers.botapi.tls.certresolver=letsencrypt"
+      # Bot api stats
+      - "traefik.http.services.botapi-stats.loadbalancer.server.port=8082"
+      - "traefik.http.routers.botapi-stats.service=botapi-stats"
+      - "traefik.http.routers.botapi-stats.rule=Host(`${STATS_DOMAIN}`)"
+      - "traefik.http.routers.botapi-stats.entrypoints=websecure"
+      - "traefik.http.routers.botapi-stats.middlewares=admin-auth@file"
+      - "traefik.http.routers.botapi-stats.tls=true"
+      - "traefik.http.routers.botapi-stats.tls.certresolver=letsencrypt"
+
+  nginx:
+    image: nginx
+    container_name: botapi_static
+    networks:
+      - traefik_net
+    volumes:
+      - botapi_data:/var/lib/telegram-bot-api
+      - ./static_nginx.conf:/etc/nginx/sites-enabled/static_nginx.conf
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.botapi-static.loadbalancer.server.port=80"
+      - "traefik.http.routers.botapi-static.rule=Host(`${DOMAIN}`) && PathPrefix(`/file/bot`)"
+      - "traefik.http.routers.botapi-static.entrypoints=websecure"
+      - "traefik.http.routers.botapi-static.priority=2"
+      - "traefik.http.routers.botapi-static.tls=true"
+      - "traefik.http.routers.botapi-static.tls.certresolver=letsencrypt"
+

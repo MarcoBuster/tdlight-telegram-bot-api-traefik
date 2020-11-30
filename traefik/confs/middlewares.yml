@@ -1,0 +1,7 @@
+http:
+  middlewares:
+    admin-auth:
+      basicAuth:
+        users:
+          - "username:$CHANGEME"  # Use htpasswd generator
+
